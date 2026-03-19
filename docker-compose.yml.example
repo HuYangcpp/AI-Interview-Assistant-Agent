@@ -1,0 +1,113 @@
+x-proxy-env: &proxy-env
+  HTTP_PROXY: ${HTTP_PROXY-}
+  HTTPS_PROXY: ${HTTPS_PROXY-}
+  NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost,redis,postgres,api,frontend}
+
+services:
+  # 1. Redis服务
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    expose:
+      - "6379"
+    networks:
+      - ai-agent-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. PostgreSQL数据库
+  postgres:
+    image: ankane/pgvector
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: hy_ai_agent
+    ports:
+      - "5432:5432"
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - ai-agent-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U root -d hy_ai_agent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 3. 数据库初始化（幂等执行，兼容旧数据卷）
+  db-init:
+    image: ankane/pgvector
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - psql postgresql://root:${DB_PASSWORD}@postgres:5432/hy_ai_agent -f /docker-entrypoint-initdb.d/init.sql
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - ai-agent-network
+    restart: "no"
+    environment:
+      <<: *proxy-env
+
+  # 4. API服务 (内置 DocProcessor MCP Tool)
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      args:
+        HTTP_PROXY: ${HTTP_PROXY-}
+        HTTPS_PROXY: ${HTTPS_PROXY-}
+        NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost,redis,postgres,api,frontend}
+    ports:
+      - "8123:8123"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      - ai-agent-network
+    environment:
+      GO111MODULE: "on"
+      GOPROXY: "https://goproxy.cn,direct"
+      <<: *proxy-env
+    volumes:
+      - uploads-data:/data/uploads
+
+  # 5. 前端服务
+  frontend:
+    build:
+      context: ../webui
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - ai-agent-network
+    environment:
+      <<: *proxy-env
+
+# 网络定义
+networks:
+  ai-agent-network:
+    driver: bridge
+    name: ai-agent-network
+
+# 数据卷定义
+volumes:
+  postgres-data:
+  uploads-data:

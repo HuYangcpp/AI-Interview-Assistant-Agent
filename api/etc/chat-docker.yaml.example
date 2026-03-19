@@ -1,0 +1,42 @@
+# Docker 部署配置模板，复制为 chat-docker.yaml 后填入真实密钥
+Name: chat
+Host: 0.0.0.0
+Port: 8123
+Timeout: 0
+
+UploadDir: "/data/uploads"
+
+Auth:
+  AccessSecret: "change-me-in-prod"
+  AccessExpire: 86400
+
+OpenAI:
+  ApiKey: "${DASHSCOPE_API_KEY}"
+  BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  Model: "glm-5.1"
+  MaxTokens: 2048
+  Temperature: 0.7
+
+VectorDB:
+  Host: "postgres"
+  Port: 5432
+  DBName: "hy_ai_agent"
+  User: "root"
+  Password: "${DB_PASSWORD}"
+  Table: "vector_store"
+  MaxConn: 20
+  EmbeddingModel: "qwen3-vl-embedding"
+  EmbeddingTimeoutSeconds: 60
+  Knowledge:
+    MaxChunkSize: 1000
+    TopK: 3
+    MaxContextLength: 500
+
+MCP:
+  Endpoint: "/app/doc-processor"
+
+Redis:
+  Host: "redis"
+  Port: 6379
+  Password: ""
+  DB: 0

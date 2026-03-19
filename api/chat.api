@@ -1,0 +1,26 @@
+syntax = "v1"
+
+info (
+	title:   "InterviewAPP Chat API"
+	desc:    "Go面试官聊天API服务"
+	author:  "yemcry"
+	email:   "yemcry@163.com"
+	version: "1.0"
+)
+
+type InterviewAPPChatReq {
+	Message string `form:"message"`
+	ChatId  string `form:"chatId"`
+}
+
+type ChatResponse {
+	Content string `json:"content"`
+	IsLast  bool   `json:"isLast"`
+}
+
+service chat {
+	@doc "Go面试官聊天SSE流式接口"
+	@handler Chat
+	get /interview_app/chat/sse (InterviewAPPChatReq)
+}
+
